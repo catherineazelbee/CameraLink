@@ -20,6 +20,7 @@ from pxr import Usd, UsdGeom, Sdf, Gf
 # Utilities
 # -------------------------
 
+# TODO: this is wrong I think
 def _inches_to_mm(x):  # Maya film gate units are inches
     return float(x) * 25.4
 
@@ -142,7 +143,7 @@ def export_camera_usdc(path, start, end, step, camera):
     return path
 
 # -------------------------
-# UI (resizable & tidy)
+# UI 
 # -------------------------
 
 def exportCameraUSDC_ui():
