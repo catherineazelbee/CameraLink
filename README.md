@@ -69,4 +69,17 @@ and select usd_cam_EXECUTE.py
 - It is recommended that any detailed camera adjustments outside of basic transforms (e.g., depth of field, focus distance, lens presets, filmback changes, cinematic settings) be done directly inside Unreal.  
 - The plugin correctly imports transforms, focal length, clipping planes, and filmback values, but advanced cinematic features should be managed natively in Unreal for the best results.
 
+# Release Log
+9/28/2025
+- First released version of the Maya → Unreal USD Camera Pipeline.  
+- Supports baking Maya cameras to `.usdc` and importing them into Unreal as Level Sequences with CineCameraActors.
+
+# Tested Platforms
+- Maya 2025.3  
+- Maya 2026
+- Unreal Engine 5.3 (Python 3.9, USD Importer)
+
+# Credit
+This plugin and workflow were designed to streamline camera transfer between Maya and Unreal via USD.  
+Special thanks to the open-source USD ecosystem and Epic Games for Unreal’s USD integration.  
 
