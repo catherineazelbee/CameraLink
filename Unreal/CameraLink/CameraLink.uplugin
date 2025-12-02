@@ -1,0 +1,24 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "CameraLink",
+	"Description": "A streamlined pipeline for transferring animated cameras from Maya to Unreal Engine using USD format.",
+	"Category": "Other",
+	"CreatedBy": "Catherine Azelby",
+	"CreatedByURL": "https://catherineazelby.com/",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": false,
+	"IsBetaVersion": true,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "CameraLink",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
+		}
+	]
+}
