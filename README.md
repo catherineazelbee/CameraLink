@@ -1,15 +1,28 @@
 
+# Maya → Unreal USD Camera Pipeline
+
+A streamlined pipeline for transferring animated cameras from Maya to Unreal Engine using USD format.
+
+---
+
+## Features
+
+- Export Maya cameras with full animation to `.usda` format
+- Import into Unreal as a Level Sequence with animated CineCameraActor
+- Live reload support for iterative workflows
+- Preserves transform animation, focal length, aperture, and clipping planes
+
 ---
 
 ## Requirements
 
 ### Maya
-- Maya 2025.3 (tested)
+- Maya 2025.3+ (tested on 2025.3 and 2026)
 - USD Python bindings (`pxr`) available inside Maya
 - Access to `maya.cmds` and `maya.api.OpenMaya`
 
-### Unreal
-- Unreal Engine 5.3 (tested; Python 3.9)
+### Unreal Engine
+- Unreal Engine 5.3+ (tested with Python 3.9)
 - Enabled plugins:
   - **USD Importer**
   - **Python Editor Script Plugin**
@@ -17,69 +30,173 @@
 
 ---
 
-## Workflow
+## Installation
 
-### 1. Export from Maya
+### Maya Setup
+1. Copy `maya_usd_camera_export.py` to your Maya scripts folder:
+   - Windows: `Documents/maya/scripts/`
+   - Mac: `~/Library/Preferences/Autodesk/maya/scripts/`
 
-1. Run `maya_usd_camera_export.py` in Maya (Script Editor → Python tab).
-2. The UI lets you:
-   - Select a **camera**.
-   - Choose a **.usdc output path**.
-   - Set **frame range** and **step** (defaults from the timeline).
-3. Click **Export Camera to USDC**.  
-   You’ll see a confirmation toast, and the file is saved.
-
-**What gets authored**
-- Camera prim named after the Maya transform.
-- Keys written at every requested frame:
-  - `worldMatrix` (verbatim from Maya).
-  - `focalLength`, `clippingRange`.
-- Static filmback/aperture values, with conversion **inches → mm**.
+### Unreal Setup
+1. In your Unreal project, create the folder: `Content/Python/`
+2. Copy both files into that folder:
+   - `unreal_usd_camera_import.py`
+   - `usd_cam_EXECUTE.py`
 
 ---
 
-### 2. Import into Unreal
+## Workflow
 
-#### Option A — Python Console
-1. Make sure your project has a folder: YourProject/Content/Python/
-2. Place both scripts in that folder:
-- `usd_cam_importer_min.py`
-- `usd_cam_EXECUTE.py`
-3. In Unreal’s Python console:
+### Step 1: Export from Maya
+
+1. Open Maya and load your scene with an animated camera.
+
+2. In the Script Editor (Python tab), run:
+   ```python
+   import maya_usd_camera_export
+   maya_usd_camera_export.export_camera_ui()
+   ```
+
+3. In the export UI:
+   - Select your **camera** from the dropdown
+   - Choose a **.usda output path** (e.g., `C:/Projects/camera.usda`)
+   - Set the **frame range** (defaults to timeline range)
+   - Click **Export Camera to USDA**
+
+4. You'll see a confirmation message with the file path.
+
+**What gets exported:**
+- Camera transform animation (translate, rotate, scale) per frame
+- Focal length (with animation if keyed)
+- Film aperture (horizontal/vertical) converted from inches to mm
+- Clipping planes (near/far)
+- Custom metadata for Unreal import
+
+---
+
+### Step 2: Import into Unreal
+
+#### Option A — Execute Python Script (Recommended)
+
+1. Open `usd_cam_EXECUTE.py` and set your USD file path:
+   ```python
+   USD_FILE_PATH = r"C:/Users/yourname/Downloads/camera.usda"
+   ```
+
+2. In Unreal's top menu: **Tools → Execute Python Script…**
+
+3. Select `usd_cam_EXECUTE.py`
+
+4. The camera imports and the Level Sequence opens in Sequencer automatically.
+
+#### Option B — Python Console
+
+1. In Unreal's Python console, run:
+   ```python
+   import unreal_usd_camera_import
+   unreal_usd_camera_import.import_camera(r"C:/path/to/camera.usda")
+   ```
+
+**What gets created:**
+- A `UsdStageActor` that references your USD file
+- A Level Sequence with the animated camera
+- Proper frame range and FPS settings
+
+---
+
+## Updating Camera Animation (Live Reload)
+
+One of the best features of this USD workflow is **live reloading**. You don't need to re-import when you make changes in Maya!
+
+### To update your camera animation:
+
+1. **In Maya:** Make your animation changes and re-export to the **same file path**.
+
+2. **In Unreal:** 
+   - Open the **USD Stage Editor** (Window → USD Stage)
+   - Select your `UsdStageActor` in the level
+   - Click **Reload** (or right-click → Reload Stage)
+
+3. Your camera animation updates instantly in Sequencer!
+
+### Tips for iterative workflow:
+- Keep Maya and Unreal open side-by-side
+- Always export to the same `.usda` file location
+- Use Reload instead of re-importing to preserve your Unreal scene setup
+- The Level Sequence frame range updates automatically with the new animation
+
+---
+
+## Debugging
+
+### Verify USD file has animation data
+
+In Unreal's Python console:
 ```python
-import importlib, usd_cam_importer_min as imp
-importlib.reload(imp)
-imp.run_import_with_path("C:/absolute/path/to/camera.usdc")
+import unreal_usd_camera_import
+unreal_usd_camera_import.print_usd_debug(r"C:/path/to/camera.usda")
 ```
-#### Option B — Execute Python Script
-1. Make sure your project has a folder: YourProject/Content/Python/
-2. Place both scripts in that folder:
-- `usd_cam_importer_min.py`
-- `usd_cam_EXECUTE.py`
-3. Open usd_cam_EXECUTE.py and edit the path to your camera file:
-```python
-USDC_PATH = r"C:/Users/you/Downloads/camera.usdc"
+
+This prints:
+- Time codes per second (FPS)
+- Start/end frame range
+- All prims and their animation data
+- Number of time samples per transform
+
+### Common issues:
+
+| Problem | Solution |
+|---------|----------|
+| Camera imports but doesn't animate | Verify camera has keyframes in Maya (check Graph Editor) |
+| Wrong frame range in Sequencer | Check Maya timeline range before export |
+| Camera position is wrong | Ensure you're exporting world-space transforms |
+| No Level Sequence created | Check that USD file has time samples (use debug function) |
+
+---
+
+## File Structure
+
 ```
-4. In Unreal’s top menu, go to:
-Tools → Execute Python Script…
-and select usd_cam_EXECUTE.py
-5. The camera will be imported into /Game/Sequences as a Level Sequence (named LS_<filename> by default) and opened in Sequencer.
+YourProject/
+├── Content/
+│   └── Python/
+│       ├── unreal_usd_camera_import.py   # Main import module
+│       └── usd_cam_EXECUTE.py            # Quick execute script
+│
+maya/scripts/
+└── maya_usd_camera_export.py             # Maya export module
+```
 
-**Note**  
-- It is recommended that any detailed camera adjustments outside of basic transforms (e.g., depth of field, focus distance, lens presets, filmback changes, cinematic settings) be done directly inside Unreal.  
-- The plugin correctly imports transforms, focal length, clipping planes, and filmback values, but advanced cinematic features should be managed natively in Unreal for the best results.
+---
 
-# Release Log
-9/28/2025
-- First released version of the Maya → Unreal USD Camera Pipeline.  
-- Supports baking Maya cameras to `.usdc` and importing them into Unreal as Level Sequences with CineCameraActors.
+## Technical Notes
 
-# Tested Platforms
-- Maya 2025.3  
-- Maya 2026
-- Unreal Engine 5.3 (Python 3.9, USD Importer)
+- **Units:** Maya aperture values (inches) are automatically converted to USD standard (millimeters)
+- **Coordinate System:** Maya Y-up is preserved; Unreal handles axis conversion
+- **Frame Rate:** Exported from Maya's current time unit setting
+- **Transform Order:** Uses translate → rotateXYZ → scale (standard USD order)
 
-# Credit
-This plugin and workflow were designed to streamline camera transfer between Maya and Unreal via USD.  
-Special thanks to the open-source USD ecosystem and Epic Games for Unreal’s USD integration.  
+---
 
+## Release Log
+
+**v2.0** (December 2025)
+- Complete rewrite of Maya export using stepped animation sampling
+- Added live reload documentation
+- Simplified Unreal import with automatic Level Sequence detection
+- Added debug utilities for troubleshooting
+- Improved metadata for frame range and FPS
+
+**v1.0** (September 2025)
+- Initial release
+- Basic Maya → Unreal camera transfer via USDA
+
+---
+
+## Tested Platforms
+
+- Maya 2025.3, Maya 2026
+- Unreal Engine 5.3, 5.4 (Python 3.9+, USD Importer plugin)
+- Windows 10/11
+
+---

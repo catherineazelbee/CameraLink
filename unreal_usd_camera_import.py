@@ -15,19 +15,19 @@ USAGE
 import os
 import unreal
 
-# Hard-coded import path (use forward slashes for Unreal)
-USD_FILE_PATH = "C:/Users/cathe/Downloads/camera.usda"
-
-
-def import_camera(file_path: str = None):
+def import_camera(file_path: str):
     """
     Import USD camera with animation into Unreal.
     
+    Args:
+        file_path: Path to the .usda file to import
+        
     This uses the UsdStageActor approach which streams USD data
     and can generate a LevelSequence from animated timeSamples.
     """
-    if file_path is None:
-        file_path = USD_FILE_PATH
+    if not file_path:
+        unreal.log_error("[USD Import] No file path provided!")
+        return None
     
     # Normalize path with forward slashes
     file_path = file_path.replace("\\", "/")
@@ -221,13 +221,17 @@ def _import_via_stage_actor(file_path: str, metadata: dict):
 
 
 
-def print_usd_debug(file_path: str = None):
+def print_usd_debug(file_path: str):
     """
     Debug helper: Print USD file structure info.
     Call this to verify your USD file has animation data.
+    
+    Args:
+        file_path: Path to the .usda file to inspect
     """
-    if file_path is None:
-        file_path = USD_FILE_PATH
+    if not file_path:
+        unreal.log_error("[USD Debug] No file path provided!")
+        return
     
     file_path = file_path.replace("\\", "/")
     
@@ -281,8 +285,3 @@ def print_usd_debug(file_path: str = None):
         unreal.log_error(f"[USD Debug] Error: {e}")
         import traceback
         unreal.log(traceback.format_exc())
-
-
-# Convenience function to run on import
-if __name__ == "__main__":
-    import_camera()
