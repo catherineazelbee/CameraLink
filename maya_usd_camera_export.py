@@ -225,49 +225,109 @@ def export_camera_usda(file_path, start_frame, end_frame, step, camera):
     # Store current time to restore later
     original_time = cmds.currentTime(query=True)
     
+    # =========================================================================
+    # STEP 1: Sample all frames FIRST, storing values
+    # (This matches the working animation_exporter.py pattern)
+    # =========================================================================
+    
+    translate_samples = {}
+    rotate_samples = {}
+    scale_samples = {}
+    focal_samples = {}
+    h_aperture_samples = {}
+    v_aperture_samples = {}
+    h_offset_samples = {}
+    v_offset_samples = {}
+    clip_samples = {}
+    
     try:
-        # Calculate frame count
+        # Calculate frames to sample
         frame_count = int((end_frame - start_frame) / step) + 1
+        frames = [start_frame + (i * step) for i in range(frame_count)]
         
-        for i in range(frame_count):
-            frame = start_frame + (i * step)
-            time_code = Usd.TimeCode(frame)
+        print(f"  Sampling {len(frames)} frames...")
+        
+        for frame in frames:
+            # CRITICAL: Jump to this frame in Maya's timeline
+            cmds.currentTime(frame)
             
-            # Set Maya time
-            cmds.currentTime(frame, edit=True)
+            # Get world-space transform at THIS frame
+            t = cmds.xform(cam_xform, query=True, worldSpace=True, translation=True)
+            r = cmds.xform(cam_xform, query=True, worldSpace=True, rotation=True)
+            s = cmds.xform(cam_xform, query=True, worldSpace=True, scale=True)
             
-            # Get world-space transform components
-            translation = cmds.xform(cam_xform, query=True, worldSpace=True, translation=True)
-            rotation = cmds.xform(cam_xform, query=True, worldSpace=True, rotation=True)
-            scale = cmds.xform(cam_xform, query=True, worldSpace=True, scale=True)
+            # Store transform samples
+            translate_samples[frame] = (t[0], t[1], t[2])
+            rotate_samples[frame] = (r[0], r[1], r[2])
+            scale_samples[frame] = (s[0], s[1], s[2])
             
-            # Write transform time samples
-            translate_op.Set(Gf.Vec3d(translation[0], translation[1], translation[2]), time_code)
-            rotate_op.Set(Gf.Vec3f(rotation[0], rotation[1], rotation[2]), time_code)
-            scale_op.Set(Gf.Vec3d(scale[0], scale[1], scale[2]), time_code)
-            
-            # Get camera optical attributes
-            focal_length = cmds.getAttr(f"{cam_shape}.focalLength")
-            h_aperture = cmds.getAttr(f"{cam_shape}.horizontalFilmAperture")
-            v_aperture = cmds.getAttr(f"{cam_shape}.verticalFilmAperture")
-            h_offset = cmds.getAttr(f"{cam_shape}.horizontalFilmOffset")
-            v_offset = cmds.getAttr(f"{cam_shape}.verticalFilmOffset")
+            # Get camera optical attributes at THIS frame
+            focal_samples[frame] = cmds.getAttr(f"{cam_shape}.focalLength")
+            h_aperture_samples[frame] = cmds.getAttr(f"{cam_shape}.horizontalFilmAperture")
+            v_aperture_samples[frame] = cmds.getAttr(f"{cam_shape}.verticalFilmAperture")
+            h_offset_samples[frame] = cmds.getAttr(f"{cam_shape}.horizontalFilmOffset")
+            v_offset_samples[frame] = cmds.getAttr(f"{cam_shape}.verticalFilmOffset")
             near_clip = cmds.getAttr(f"{cam_shape}.nearClipPlane")
             far_clip = cmds.getAttr(f"{cam_shape}.farClipPlane")
-            
-            # Write camera attributes (convert aperture from inches to mm)
-            usd_camera.GetFocalLengthAttr().Set(float(focal_length), time_code)
-            usd_camera.GetHorizontalApertureAttr().Set(_inches_to_mm(h_aperture), time_code)
-            usd_camera.GetVerticalApertureAttr().Set(_inches_to_mm(v_aperture), time_code)
-            usd_camera.GetHorizontalApertureOffsetAttr().Set(_inches_to_mm(h_offset), time_code)
-            usd_camera.GetVerticalApertureOffsetAttr().Set(_inches_to_mm(v_offset), time_code)
-            usd_camera.GetClippingRangeAttr().Set(Gf.Vec2f(near_clip, far_clip), time_code)
+            clip_samples[frame] = (near_clip, far_clip)
         
-        print(f"  Wrote {frame_count} time samples")
+        # Debug: Print first and last frame values to verify animation
+        print(f"  Frame {frames[0]}: translate={translate_samples[frames[0]]}")
+        print(f"  Frame {frames[-1]}: translate={translate_samples[frames[-1]]}")
+        
+        # Check if values actually change
+        unique_translations = set(translate_samples.values())
+        unique_rotations = set(rotate_samples.values())
+        
+        if len(unique_translations) == 1 and len(unique_rotations) == 1:
+            print("  WARNING: Camera appears static (no animation detected in samples)")
+        else:
+            print(f"  Animation detected: {len(unique_translations)} unique positions, {len(unique_rotations)} unique rotations")
         
     finally:
         # Restore original time
         cmds.currentTime(original_time, edit=True)
+    
+    # =========================================================================
+    # Write all samples to USD
+    # =========================================================================
+    
+    print(f"  Writing samples to USD...")
+    
+    # Write transform samples
+    for frame, value in translate_samples.items():
+        translate_op.Set(Gf.Vec3d(value[0], value[1], value[2]), frame)
+    
+    for frame, value in rotate_samples.items():
+        rotate_op.Set(Gf.Vec3f(value[0], value[1], value[2]), frame)
+    
+    for frame, value in scale_samples.items():
+        scale_op.Set(Gf.Vec3d(value[0], value[1], value[2]), frame)
+    
+    # Write camera optical samples (convert aperture from inches to mm)
+    for frame, value in focal_samples.items():
+        usd_camera.GetFocalLengthAttr().Set(float(value), frame)
+    
+    for frame, value in h_aperture_samples.items():
+        usd_camera.GetHorizontalApertureAttr().Set(_inches_to_mm(value), frame)
+    
+    for frame, value in v_aperture_samples.items():
+        usd_camera.GetVerticalApertureAttr().Set(_inches_to_mm(value), frame)
+    
+    for frame, value in h_offset_samples.items():
+        usd_camera.GetHorizontalApertureOffsetAttr().Set(_inches_to_mm(value), frame)
+    
+    for frame, value in v_offset_samples.items():
+        usd_camera.GetVerticalApertureOffsetAttr().Set(_inches_to_mm(value), frame)
+    
+    for frame, value in clip_samples.items():
+        usd_camera.GetClippingRangeAttr().Set(Gf.Vec2f(value[0], value[1]), frame)
+    
+    print(f"  Wrote {len(frames)} time samples")
+    
+    # =========================================================================
+    # STEP 3: Add metadata and save
+    # =========================================================================
     
     # Add custom metadata for Unreal import
     root_layer = stage.GetRootLayer()
@@ -313,7 +373,7 @@ def export_camera_ui():
         win_name,
         title="Export Camera to USDA",
         sizeable=True,
-        widthHeight=(500, 280)
+        widthHeight=(500, 320)
     )
     
     main_layout = cmds.columnLayout(adjustableColumn=True, rowSpacing=8, columnAttach=("both", 10))
@@ -404,6 +464,8 @@ def export_camera_ui():
     
     # === Frame Range ===
     cmds.frameLayout(label="Frame Range", collapsable=False, marginHeight=6, marginWidth=6)
+    
+    # First row: Start, End, Step fields
     range_row = cmds.rowLayout(numberOfColumns=6, columnWidth6=(50, 80, 50, 80, 50, 80))
     
     min_time = cmds.playbackOptions(query=True, minTime=True)
@@ -415,6 +477,19 @@ def export_camera_ui():
     end_field = cmds.intField(value=int(max_time), width=80)
     cmds.text(label="Step:")
     step_field = cmds.intField(value=1, minValue=1, width=80)
+    cmds.setParent("..")
+    
+    # Second row: Get from Timeline button
+    cmds.rowLayout(numberOfColumns=1)
+    
+    def get_from_timeline(*args):
+        """Update frame range fields from Maya's current playback range."""
+        timeline_start = cmds.playbackOptions(query=True, minTime=True)
+        timeline_end = cmds.playbackOptions(query=True, maxTime=True)
+        cmds.intField(start_field, edit=True, value=int(timeline_start))
+        cmds.intField(end_field, edit=True, value=int(timeline_end))
+    
+    cmds.button(label="Get from Timeline", command=get_from_timeline, width=150)
     cmds.setParent("..")
     cmds.setParent("..")
     

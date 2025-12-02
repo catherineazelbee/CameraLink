@@ -1,4 +1,3 @@
-
 # Maya → Unreal USD Camera Pipeline
 
 A streamlined pipeline for transferring animated cameras from Maya to Unreal Engine using USD format.
@@ -8,7 +7,8 @@ A streamlined pipeline for transferring animated cameras from Maya to Unreal Eng
 ## Features
 
 - Export Maya cameras with full animation to `.usda` format
-- Import into Unreal as a Level Sequence with animated CineCameraActor
+- One-click import into Unreal via toolbar button
+- Import creates a Level Sequence with animated CineCameraActor
 - Live reload support for iterative workflows
 - Preserves transform animation, focal length, aperture, and clipping planes
 
@@ -22,7 +22,7 @@ A streamlined pipeline for transferring animated cameras from Maya to Unreal Eng
 - Access to `maya.cmds` and `maya.api.OpenMaya`
 
 ### Unreal Engine
-- Unreal Engine 5.3+ (tested with Python 3.9)
+- Unreal Engine 5.3+
 - Enabled plugins:
   - **USD Importer**
   - **Python Editor Script Plugin**
@@ -38,10 +38,15 @@ A streamlined pipeline for transferring animated cameras from Maya to Unreal Eng
    - Mac: `~/Library/Preferences/Autodesk/maya/scripts/`
 
 ### Unreal Setup
-1. In your Unreal project, create the folder: `Content/Python/`
-2. Copy both files into that folder:
-   - `unreal_usd_camera_import.py`
-   - `usd_cam_EXECUTE.py`
+1. Copy the `CameraLink` plugin folder to your project's `Plugins/` directory:
+   ```
+   YourProject/
+   └── Plugins/
+       └── CameraLink/
+   ```
+2. Restart Unreal Engine
+3. Enable the **CameraLink** plugin in Edit → Plugins if not already enabled
+4. A camera icon button will appear in the toolbar
 
 ---
 
@@ -76,26 +81,11 @@ A streamlined pipeline for transferring animated cameras from Maya to Unreal Eng
 
 ### Step 2: Import into Unreal
 
-#### Option A — Execute Python Script (Recommended)
+1. Click the **CameraLink** button in the toolbar (camera icon)
 
-1. Open `usd_cam_EXECUTE.py` and set your USD file path:
-   ```python
-   USD_FILE_PATH = r"C:/Users/yourname/Downloads/camera.usda"
-   ```
+2. A file browser opens — select your `.usda` camera file
 
-2. In Unreal's top menu: **Tools → Execute Python Script…**
-
-3. Select `usd_cam_EXECUTE.py`
-
-4. The camera imports and the Level Sequence opens in Sequencer automatically.
-
-#### Option B — Python Console
-
-1. In Unreal's Python console, run:
-   ```python
-   import unreal_usd_camera_import
-   unreal_usd_camera_import.import_camera(r"C:/path/to/camera.usda")
-   ```
+3. The camera imports and the Level Sequence opens in Sequencer automatically
 
 **What gets created:**
 - A `UsdStageActor` that references your USD file
@@ -158,13 +148,20 @@ This prints:
 
 ```
 YourProject/
-├── Content/
-│   └── Python/
-│       ├── unreal_usd_camera_import.py   # Main import module
-│       └── usd_cam_EXECUTE.py            # Quick execute script
-│
+└── Plugins/
+    └── CameraLink/
+        ├── CameraLink.uplugin
+        ├── Content/
+        │   └── Python/
+        │       └── unreal_usd_camera_import.py
+        ├── Resources/
+        │   └── Icon20.png
+        └── Source/
+            └── CameraLink/
+                └── ...
+
 maya/scripts/
-└── maya_usd_camera_export.py             # Maya export module
+└── maya_usd_camera_export.py
 ```
 
 ---
@@ -181,6 +178,7 @@ maya/scripts/
 ## Release Log
 
 **v2.0** (December 2025)
+- Added CameraLink Unreal plugin with toolbar button
 - Complete rewrite of Maya export using stepped animation sampling
 - Added live reload documentation
 - Simplified Unreal import with automatic Level Sequence detection
@@ -202,4 +200,9 @@ maya/scripts/
 ---
 
 ## Credits
-- Button icon from Lucide library
+
+**Developer**
+- Catherine Azelby — [catherineazelby.com](https://catherineazelby.com/)
+
+**Icons**
+- Camera icon from [Lucide Icons](https://lucide.dev/) (ISC License)
