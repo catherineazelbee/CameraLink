@@ -490,9 +490,13 @@ class CameraExportUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
             
             result = export_camera_usda(file_path, start, end, step, camera)
             
-            QtWidgets.QMessageBox.information(
-                self, "Export Complete",
-                f"Camera exported successfully!\n\n{result}"
+            # Show toast message on success
+            cmds.inViewMessage(
+                assistMessage=f"<hl>Camera exported!</hl>\n{os.path.basename(result)}",
+                position="topCenter",
+                fade=True,
+                fadeStayTime=1500,
+                fadeOutTime=500
             )
             
         except Exception as e:
