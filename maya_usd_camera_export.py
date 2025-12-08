@@ -6,7 +6,7 @@ import maya.OpenMayaUI as omui
 import os
 
 try:
-    from pxr import Usd, UsdGeom, Sdf, Gf
+    from pxr import Usd, UsdGeom, Sdf
 except ImportError:
     mc.error("USD Python libraries not found. Make sure Maya USD plugin is loaded.")
 
@@ -16,7 +16,7 @@ def get_maya_main_window():
     return wrapInstance(int(main_window_ptr), QtWidgets.QWidget)
 
 def export_camera_to_usd(camera_name, output_path, frame_range):
-    """Export camera animation to USD with proper time metadata."""
+    """Export camera animation to USD using separate TRS operations (matches LayoutLink)."""
     start_frame, end_frame = frame_range
     
     # Get Maya's current frame rate
@@ -37,13 +37,7 @@ def export_camera_to_usd(camera_name, output_path, frame_range):
     # Create USD stage in ASCII format
     stage = Usd.Stage.CreateNew(output_path)
     
-    # CRITICAL: Set time/FPS metadata for proper Unreal import
-    stage.SetTimeCodesPerSecond(maya_fps)
-    stage.SetFramesPerSecond(maya_fps)
-    stage.SetStartTimeCode(start_frame)
-    stage.SetEndTimeCode(end_frame)
-    
-    # Set scene metadata
+    # Set scene metadata (MATCH LAYOUTLINK)
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.y)
     UsdGeom.SetStageMetersPerUnit(stage, 0.01)
     
@@ -51,8 +45,12 @@ def export_camera_to_usd(camera_name, output_path, frame_range):
     camera_path = f"/cameras/{camera_name}"
     camera_prim = UsdGeom.Camera.Define(stage, camera_path)
     
-    # Store transform samples and attribute samples
-    xform_samples = {}
+    # Store transform samples (SEPARATE TRS like LayoutLink)
+    translate_samples = {}
+    rotate_samples = {}
+    scale_samples = {}
+    
+    # Store camera attribute samples
     attr_samples = {
         'focalLength': {},
         'horizontalAperture': {},
@@ -64,17 +62,15 @@ def export_camera_to_usd(camera_name, output_path, frame_range):
     # Sample at every frame
     for frame in range(int(start_frame), int(end_frame) + 1):
         mc.currentTime(frame)
-        time_code = Usd.TimeCode(frame)
         
-        # Get transform
-        world_matrix = mc.xform(camera_name, query=True, matrix=True, worldSpace=True)
-        gf_matrix = Gf.Matrix4d(
-            world_matrix[0], world_matrix[1], world_matrix[2], world_matrix[3],
-            world_matrix[4], world_matrix[5], world_matrix[6], world_matrix[7],
-            world_matrix[8], world_matrix[9], world_matrix[10], world_matrix[11],
-            world_matrix[12], world_matrix[13], world_matrix[14], world_matrix[15]
-        )
-        xform_samples[frame] = gf_matrix
+        # Get SEPARATE transform components (like LayoutLink)
+        translation = mc.xform(camera_name, query=True, worldSpace=True, translation=True)
+        rotation = mc.xform(camera_name, query=True, worldSpace=True, rotation=True)
+        scale = mc.xform(camera_name, query=True, worldSpace=True, scale=True)
+        
+        translate_samples[frame] = (translation[0], translation[1], translation[2])
+        rotate_samples[frame] = (rotation[0], rotation[1], rotation[2])
+        scale_samples[frame] = (scale[0], scale[1], scale[2])
         
         # Get camera attributes
         shape = mc.listRelatives(camera_name, shapes=True)[0]
@@ -84,26 +80,49 @@ def export_camera_to_usd(camera_name, output_path, frame_range):
         attr_samples['focusDistance'][frame] = mc.getAttr(f"{shape}.focusDistance")
         attr_samples['fStop'][frame] = mc.getAttr(f"{shape}.fStop")
     
-    # Write transform samples
+    # Write SEPARATE transform ops (MATCH LAYOUTLINK EXACTLY)
     xformable = UsdGeom.Xformable(camera_prim)
-    xform_op = xformable.AddTransformOp()
-    for frame, matrix in xform_samples.items():
-        xform_op.Set(matrix, Usd.TimeCode(frame))
+    xformable.ClearXformOpOrder()
     
-    # Write attribute samples
+    # Create transform ops in the same order as LayoutLink
+    translate_op = xformable.AddTranslateOp()
+    rotate_op = xformable.AddRotateXYZOp()
+    scale_op = xformable.AddScaleOp()
+    
+    # Write all transform samples as timeSamples (using frame number directly)
+    for frame, value in translate_samples.items():
+        translate_op.Set(value, frame)
+    
+    for frame, value in rotate_samples.items():
+        rotate_op.Set(value, frame)
+    
+    for frame, value in scale_samples.items():
+        scale_op.Set(value, frame)
+    
+    # Write camera attribute samples
     for attr_name, samples in attr_samples.items():
         attr = camera_prim.GetPrim().GetAttribute(attr_name)
         for frame, value in samples.items():
-            attr.Set(value, Usd.TimeCode(frame))
+            attr.Set(value, frame)
+    
+    # Add metadata to root layer (like LayoutLink does)
+    root_layer = stage.GetRootLayer()
+    custom_data = {
+        'cameralink_start_frame': start_frame,
+        'cameralink_end_frame': end_frame,
+        'cameralink_fps': maya_fps,
+        'cameralink_camera_name': camera_name
+    }
+    root_layer.customLayerData = custom_data
     
     stage.Save()
     
-    # Print metadata info for verification
-    print(f"✓ Exported camera with FPS metadata:")
-    print(f"  - Maya FPS: {maya_fps}")
-    print(f"  - timeCodesPerSecond: {stage.GetTimeCodesPerSecond()}")
-    print(f"  - framesPerSecond: {stage.GetFramesPerSecond()}")
+    # Print info for verification
+    print(f"✓ Exported camera animation:")
+    print(f"  - Camera: {camera_name}")
     print(f"  - Frame range: {start_frame} to {end_frame}")
+    print(f"  - Maya FPS: {maya_fps}")
+    print(f"  - Transform type: Separate TRS (matches LayoutLink)")
     
     return output_path
 
@@ -224,7 +243,7 @@ class CameraLinkUI(QtWidgets.QWidget):
         output_layout.addLayout(file_layout)
         
         # Info label
-        info_label = QtWidgets.QLabel("⚡ Will export as .usda (ASCII) with correct FPS metadata")
+        info_label = QtWidgets.QLabel("⚡ Will export as .usda with TRS animation (matches LayoutLink)")
         info_label.setStyleSheet("color: #888; font-size: 9pt;")
         output_layout.addWidget(info_label)
         
@@ -314,7 +333,7 @@ class CameraLinkUI(QtWidgets.QWidget):
             self.status_label.setStyleSheet("color: green;")
             
             mc.inViewMessage(
-                amg=f"Camera exported with FPS metadata: {result_path}",
+                amg=f"Camera exported successfully: {result_path}",
                 pos='topCenter',
                 fade=True
             )

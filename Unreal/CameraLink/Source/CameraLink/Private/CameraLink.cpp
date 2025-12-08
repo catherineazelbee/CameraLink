@@ -3,16 +3,18 @@
 #include "CameraLink.h"
 #include "CameraLinkStyle.h"
 #include "CameraLinkCommands.h"
-#include "Misc/MessageDialog.h"
 #include "ToolMenus.h"
-#include "DesktopPlatformModule.h"
-#include "IDesktopPlatform.h"
-#include "Framework/Application/SlateApplication.h"
-#include "IPythonScriptPlugin.h"
-#include "Modules/ModuleManager.h"
-#include "Interfaces/IPluginManager.h"
 
-static const FName CameraLinkTabName("CameraLink");
+#include "IDesktopPlatform.h"
+#include "DesktopPlatformModule.h"
+#include "Framework/Application/SlateApplication.h"
+
+#include "Interfaces/IPluginManager.h"
+#include "Modules/ModuleManager.h"
+#include "Misc/MessageDialog.h"
+
+#include "IPythonScriptPlugin.h"
+
 
 #define LOCTEXT_NAMESPACE "FCameraLinkModule"
 
@@ -114,22 +116,42 @@ void FCameraLinkModule::ExecutePythonImport(const FString& FilePath)
 		return;
 	}
 
-	// Build Python command to import camera
-	// This calls our import module with the selected file path
+	// Get plugin Python path
+	FString PluginDir = IPluginManager::Get().FindPlugin("CameraLink")->GetBaseDir();
+	FString PythonPath = PluginDir / TEXT("Content/Python");
+	PythonPath = PythonPath.Replace(TEXT("\\"), TEXT("/"));
+
+	UE_LOG(LogTemp, Warning, TEXT("CameraLink: Plugin directory: %s"), *PluginDir);
+	UE_LOG(LogTemp, Warning, TEXT("CameraLink: Python path: %s"), *PythonPath);
+
+	// Build Python command - add path, print it, THEN import
 	FString PythonCommand = FString::Printf(
-		TEXT("import unreal_usd_camera_import; unreal_usd_camera_import.import_camera(r\"%s\")"),
+		TEXT("import sys; "
+		     "sys.path.append(r\"%s\"); "
+		     "import unreal; "
+		     "unreal.log('Python sys.path added: %s'); "
+		     "import os; "
+		     "unreal.log('File exists: ' + str(os.path.exists(r\"%s/unreal_usd_camera_import.py\"))); "
+		     "import unreal_usd_camera_import; "
+		     "unreal_usd_camera_import.import_camera(r\"%s\")"),
+		*PythonPath,
+		*PythonPath,
+		*PythonPath,
 		*FilePath
 	);
 
+	UE_LOG(LogTemp, Warning, TEXT("CameraLink: Executing Python command"));
+
 	// Execute the Python command
-	TArray<FString> CommandArgs;
 	bool bSuccess = PythonPlugin->ExecPythonCommand(*PythonCommand);
+
+	UE_LOG(LogTemp, Warning, TEXT("CameraLink: Python result: %s"), bSuccess ? TEXT("SUCCESS") : TEXT("FAILED"));
 
 	if (!bSuccess)
 	{
 		FMessageDialog::Open(EAppMsgType::Ok,
 			FText::Format(
-				LOCTEXT("PythonError", "Failed to execute Python import.\n\nMake sure 'unreal_usd_camera_import.py' is in your plugin's Content/Python folder.\n\nFile: {0}"),
+				LOCTEXT("PythonError", "Failed to execute Python import.\n\nCheck Output Log for detailed path info.\n\nFile: {0}"),
 				FText::FromString(FilePath)
 			));
 	}
