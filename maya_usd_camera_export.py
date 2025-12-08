@@ -34,6 +34,15 @@ def export_camera_to_usd(camera_name, output_path, frame_range):
     if not output_path.endswith('.usda'):
         output_path = output_path.rsplit('.', 1)[0] + '.usda'
     
+    # Remove existing file if it exists (USD CreateNew fails on existing files)
+    if os.path.exists(output_path):
+        try:
+            os.remove(output_path)
+            print(f"Removed existing file: {output_path}")
+        except Exception as e:
+            mc.error(f"Could not remove existing file: {e}")
+            return None
+    
     # Create USD stage in ASCII format
     stage = Usd.Stage.CreateNew(output_path)
     
