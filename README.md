@@ -180,7 +180,7 @@ maya/scripts/
 
 ## Technical Notes
 
-- **Aperture/Aspect Ratio:** Vertical aperture is calculated from horizontal aperture and Maya's render resolution to ensure correct aspect ratio in Unreal
+- **Aperture/Aspect Ratio:** Uses industry-standard 36mm horizontal aperture. Vertical aperture is automatically calculated from Maya's render resolution to match any aspect ratio (16:9, 21:9, 4:3, etc.) regardless of Maya camera filmback settings
 - **Focus Distance:** Converted from Maya scene units (mm/cm/m/in/ft/yd) to centimeters for USD
 - **Frame Rate:** Retrieved via MEL `currentTimeUnitToFPS()` to support all FPS settings including custom values
 - **Coordinate System:** Maya Y-up is preserved; Unreal handles axis conversion
