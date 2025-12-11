@@ -20,15 +20,7 @@ def export_camera_to_usd(camera_name, output_path, frame_range):
     start_frame, end_frame = frame_range
     
     # Get Maya's current frame rate
-    time_unit = mc.currentUnit(query=True, time=True)
-    fps_map = {
-        'game': 15.0, 'film': 24.0, 'pal': 25.0, 'ntsc': 30.0,
-        'show': 48.0, 'palf': 50.0, 'ntscf': 60.0,
-        '23.976fps': 23.976, '29.97fps': 29.97, '29.97df': 29.97,
-        '47.952fps': 47.952, '59.94fps': 59.94, '44100fps': 44100.0,
-        '48000fps': 48000.0
-    }
-    maya_fps = fps_map.get(time_unit, 24.0)
+    maya_fps = mel.eval('currentTimeUnitToFPS()')
     
     # Ensure .usda extension (ASCII format)
     if not output_path.endswith('.usda'):
@@ -70,9 +62,17 @@ def export_camera_to_usd(camera_name, output_path, frame_range):
         'focalLength': {},
         'horizontalAperture': {},
         'verticalAperture': {},
+        'horizontalApertureOffset': {},
+        'verticalApertureOffset': {},
         'focusDistance': {},
         'fStop': {}
     }
+    
+    # Get render resolution for aspect ratio calculation
+    render_width = mc.getAttr("defaultResolution.width")
+    render_height = mc.getAttr("defaultResolution.height")
+    target_aspect = render_width / render_height
+    print(f"  - Render resolution: {render_width}x{render_height} (aspect: {target_aspect:.4f})")
     
     # Sample at every frame
     for frame in range(int(start_frame), int(end_frame) + 1):
@@ -90,8 +90,23 @@ def export_camera_to_usd(camera_name, output_path, frame_range):
         # Get camera attributes
         shape = mc.listRelatives(camera_name, shapes=True)[0]
         attr_samples['focalLength'][frame] = mc.getAttr(f"{shape}.focalLength")
-        attr_samples['horizontalAperture'][frame] = mc.getAttr(f"{shape}.horizontalFilmAperture") * 25.4
-        attr_samples['verticalAperture'][frame] = mc.getAttr(f"{shape}.verticalFilmAperture") * 25.4
+        
+        # Get Maya's film aperture in inches, convert to mm
+        maya_h_aperture = mc.getAttr(f"{shape}.horizontalFilmAperture") * 25.4
+        maya_v_aperture = mc.getAttr(f"{shape}.verticalFilmAperture") * 25.4
+        
+        # Calculate aperture based on render resolution aspect ratio
+        # Keep horizontal aperture, adjust vertical to match render aspect
+        h_aperture = maya_h_aperture
+        v_aperture = h_aperture / target_aspect
+        
+        attr_samples['horizontalAperture'][frame] = h_aperture
+        attr_samples['verticalAperture'][frame] = v_aperture
+        
+        # Film offset (sensor shift) - convert inches to mm
+        attr_samples['horizontalApertureOffset'][frame] = mc.getAttr(f"{shape}.horizontalFilmOffset") * 25.4
+        attr_samples['verticalApertureOffset'][frame] = mc.getAttr(f"{shape}.verticalFilmOffset") * 25.4
+        
         attr_samples['focusDistance'][frame] = mc.getAttr(f"{shape}.focusDistance")
         attr_samples['fStop'][frame] = mc.getAttr(f"{shape}.fStop")
     
@@ -127,7 +142,10 @@ def export_camera_to_usd(camera_name, output_path, frame_range):
         'cameralink_start_frame': start_frame,
         'cameralink_end_frame': end_frame,
         'cameralink_fps': maya_fps,
-        'cameralink_camera_name': camera_name
+        'cameralink_camera_name': camera_name,
+        'cameralink_render_width': render_width,
+        'cameralink_render_height': render_height,
+        'cameralink_aspect_ratio': target_aspect
     }
     root_layer.customLayerData = custom_data
     
@@ -139,6 +157,8 @@ def export_camera_to_usd(camera_name, output_path, frame_range):
     print(f"  - Frame range: {start_frame} to {end_frame}")
     print(f"  - Maya FPS: {maya_fps}")
     print(f"  - Transform type: Separate TRS (matches LayoutLink)")
+    print(f"  - Aperture: {h_aperture:.2f}mm x {v_aperture:.2f}mm (aspect: {h_aperture/v_aperture:.4f})")
+    print(f"  - Target aspect: {target_aspect:.4f} ({render_width}x{render_height})")
     
     return output_path
 
@@ -212,7 +232,7 @@ class CameraLinkUI(QtWidgets.QWidget):
         # FPS info display
         fps_label = QtWidgets.QLabel()
         time_unit = mc.currentUnit(query=True, time=True)
-        fps_label.setText(f"Current Maya FPS: {time_unit}")
+        fps_label.setText("Please set desired frame range in the Maya timeline.")
         fps_label.setStyleSheet("color: #888; font-style: italic;")
         range_layout.addWidget(fps_label)
         
@@ -257,11 +277,6 @@ class CameraLinkUI(QtWidgets.QWidget):
         browse_btn.clicked.connect(self.browse_output)
         file_layout.addWidget(browse_btn)
         output_layout.addLayout(file_layout)
-        
-        # Info label
-        info_label = QtWidgets.QLabel("⚡ Will export as .usda with TRS animation (matches LayoutLink)")
-        info_label.setStyleSheet("color: #888; font-size: 9pt;")
-        output_layout.addWidget(info_label)
         
         output_group.setLayout(output_layout)
         main_layout.addWidget(output_group)
@@ -361,7 +376,7 @@ class CameraLinkUI(QtWidgets.QWidget):
 
 def show_ui():
     """Launch CameraLink UI as a dockable workspace control."""
-    # Delete existing workspace control
+    # Delete existing UI if it exists
     if mc.workspaceControl("CameraLinkWC", exists=True):
         mc.deleteUI("CameraLinkWC", control=True)
     
