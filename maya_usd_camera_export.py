@@ -67,8 +67,6 @@ def export_camera_to_usd(camera_name, output_path, frame_range):
         'focalLength': {},
         'horizontalAperture': {},
         'verticalAperture': {},
-        'horizontalApertureOffset': {},
-        'verticalApertureOffset': {},
         'focusDistance': {},
         'fStop': {}
     }
@@ -108,10 +106,7 @@ def export_camera_to_usd(camera_name, output_path, frame_range):
         attr_samples['horizontalAperture'][frame] = h_aperture
         attr_samples['verticalAperture'][frame] = v_aperture
         
-        # Film offset (sensor shift) - convert inches to mm
-        attr_samples['horizontalApertureOffset'][frame] = mc.getAttr(f"{shape}.horizontalFilmOffset") * 25.4
-        attr_samples['verticalApertureOffset'][frame] = mc.getAttr(f"{shape}.verticalFilmOffset") * 25.4
-        
+        # Focus distance - convert from Maya's linear unit to cm for USD
         attr_samples['focusDistance'][frame] = mc.getAttr(f"{shape}.focusDistance") * cm_scale
         attr_samples['fStop'][frame] = mc.getAttr(f"{shape}.fStop")
     
@@ -161,10 +156,10 @@ def export_camera_to_usd(camera_name, output_path, frame_range):
     print(f"  - Camera: {camera_name}")
     print(f"  - Frame range: {start_frame} to {end_frame}")
     print(f"  - Maya FPS: {maya_fps}")
+    print(f"  - Maya linear unit: {linear_unit} (scale to cm: {cm_scale})")
     print(f"  - Transform type: Separate TRS (matches LayoutLink)")
     print(f"  - Aperture: {h_aperture:.2f}mm x {v_aperture:.2f}mm (aspect: {h_aperture/v_aperture:.4f})")
     print(f"  - Target aspect: {target_aspect:.4f} ({render_width}x{render_height})")
-    print(f"  - Maya linear unit: {linear_unit} (scale to cm: {cm_scale})")
     
     return output_path
 
@@ -237,7 +232,6 @@ class CameraLinkUI(QtWidgets.QWidget):
         
         # FPS info display
         fps_label = QtWidgets.QLabel()
-        time_unit = mc.currentUnit(query=True, time=True)
         fps_label.setText("Please set desired frame range in the Maya timeline.")
         fps_label.setStyleSheet("color: #888; font-style: italic;")
         range_layout.addWidget(fps_label)
