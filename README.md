@@ -17,8 +17,7 @@ A streamlined pipeline for transferring animated cameras from Maya to Unreal Eng
 ---
 
 ## Demo Video
-# Setup Demo Video
-[![Watch the video]([thumbnail-image.png)](https://vimeo.com/YOUR_VIDEO_ID](https://vimeo.com/1146015631/f2f2e253ce?share=copy))
+[[![Watch the video]([thumbnail-image.png)](https://vimeo.com/YOUR_VIDEO_ID](https://vimeo.com/1146015631/f2f2e253ce?share=copy))](https://vimeo.com/1146015631?share=copy&fl=sv&fe=ci)
 
 ---
 
