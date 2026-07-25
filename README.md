@@ -1,6 +1,6 @@
 # Maya → Unreal USD Camera Pipeline
 
-A streamlined pipeline for transferring animated cameras from Maya to Unreal Engine using USD format.
+Plugin for a streamlined pipeline for transferring animated cameras from Maya to Unreal Engine using USD format.
 
 ---
 
